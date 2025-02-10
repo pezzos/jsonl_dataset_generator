@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur de FAQ</title>
+    <!-- Préchargement des ressources critiques -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://code.jquery.com/jquery-3.7.1.min.js" as="script">
+    <link rel="preload" href="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js" as="script">
+
+    <!-- Styles -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <h1>Générateur de FAQ</h1>
+    <section id="keyword-section">
+        <h2>Mots clés</h2>
+        <input type="text" id="keyword-input" placeholder="Entrez un mot clé ou une phrase">
+        <button id="add-keyword-btn">Ajouter</button>
+        <button id="generate-missing-tags-btn">Générer tags manquants</button>
+        <button id="export-keywords-btn">Exporter</button>
+        <input type="file" id="import-keywords-input" accept=".txt" style="display: none;">
+        <button id="import-keywords-btn">Importer</button>
+        <div class="keyword-actions">
+            <button id="delete-all-keywords-btn">Supprimer tout</button>
+            <button id="delete-filtered-keywords-btn">Supprimer filtrés</button>
+            <button id="delete-selected-keywords-btn">Supprimer sélectionnés</button>
+            <button id="toggle-select-all-btn">Tout sélectionner</button>
+        </div>
+        <ul id="keyword-list"></ul>
+    </section>
+    <section id="question-generation">
+        <h2>Génération des Questions</h2>
+        <button id="generate-questions-btn">Générer Questions</button>
+        <button id="export-questions-btn">Exporter</button>
+        <input type="file" id="import-questions-input" accept=".txt" style="display: none;">
+        <button id="import-questions-btn">Importer</button>
+        <div class="table-container">
+            <table id="questions-table" class="display responsive nowrap" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Sélection</th>
+                        <th>Question</th>
+                        <th>Source</th>
+                        <th>Mot clé</th>
+                        <th>Catégorie</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Les questions generées seront affichées ici -->
+                </tbody>
+            </table>
+            <div class="table-footer">
+                Total des questions : <span id="questions-count">0</span>
+            </div>
+        </div>
+        <div class="manual-add-form">
+            <h3>Ajouter une question manuellement</h3>
+            <input type="text" id="manual-question-input" placeholder="Question">
+            <select id="manual-question-category">
+                <option value="">Sélectionner une catégorie</option>
+                <option value="Questions habituelles">Questions habituelles</option>
+                <option value="Questions techniques">Questions techniques</option>
+                <option value="Questions pour en comprendre plus">Questions pour en comprendre plus</option>
+                <option value="Questions farfelues">Questions farfelues</option>
+                <option value="Questions non posées mais intéressantes">Questions non posées mais intéressantes</option>
+            </select>
+            <input type="text" id="manual-question-keyword" placeholder="Mot clé">
+            <button id="add-manual-question-btn">Ajouter la question</button>
+        </div>
+        <button id="smart-sort-btn">Smart Sort</button>
+        <button id="delete-selected-questions-btn">Supprimer sélectionnées</button>
+    </section>
+    <section id="faq-generation">
+        <h2>Génération de la FAQ</h2>
+        <button id="generate-faq-btn">Générer FAQ</button>
+        <div class="table-container">
+            <table id="faq-table" class="display responsive nowrap" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Sélection</th>
+                        <th>Question</th>
+                        <th>Réponse</th>
+                        <th>Mot clé</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- La FAQ générée sera affichée ici -->
+                </tbody>
+            </table>
+            <div class="table-footer">
+                Total des réponses : <span id="faq-count">0</span>
+            </div>
+        </div>
+        <div class="manual-add-form">
+            <h3>Ajouter une FAQ manuellement</h3>
+            <input type="text" id="manual-faq-question" placeholder="Question">
+            <textarea id="manual-faq-answer" placeholder="Réponse"></textarea>
+            <input type="text" id="manual-faq-keyword" placeholder="Mot clé">
+            <button id="add-manual-faq-btn">Ajouter la FAQ</button>
+        </div>
+        <button id="delete-selected-faq-btn">Supprimer sélectionnées</button>
+        <button id="export-faq-btn">Exporter FAQ (JSONL)</button>
+    </section>
+
+    <!-- Nouvelle section pour les paramètres -->
+    <section id="settings-section" class="settings-section">
+        <h2>Paramètres</h2>
+        <table id="settings-table">
+            <thead>
+                <tr>
+                    <th>Étape</th>
+                    <th>OpenAI</th>
+                    <th>Anthropic</th>
+                    <th>Google</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Génération des questions</td>
+                    <td><select class="model-select" data-step="generateQuestions" data-provider="openai"></select></td>
+                    <td><select class="model-select" data-step="generateQuestions" data-provider="anthropic"></select></td>
+                    <td><select class="model-select" data-step="generateQuestions" data-provider="google"></select></td>
+                </tr>
+                <tr>
+                    <td>Smart Sort</td>
+                    <td><select class="model-select" data-step="smartSort" data-provider="openai"></select></td>
+                    <td><select class="model-select" data-step="smartSort" data-provider="anthropic"></select></td>
+                    <td><select class="model-select" data-step="smartSort" data-provider="google"></select></td>
+                </tr>
+                <tr>
+                    <td>Génération de la FAQ</td>
+                    <td><select class="model-select" data-step="generateFAQ" data-provider="openai"></select></td>
+                    <td><select class="model-select" data-step="generateFAQ" data-provider="anthropic"></select></td>
+                    <td><select class="model-select" data-step="generateFAQ" data-provider="google"></select></td>
+                </tr>
+            </tbody>
+        </table>
+        <button id="save-settings-btn">Sauvegarder les paramètres</button>
+    </section>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js" async></script>
+    <script src="script.js" defer></script>
+</body>
+
+</html>

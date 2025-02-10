@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+    container_name: faq
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.faq.entrypoints=websecure
+      - traefik.http.routers.faq.rule=Host(`faq.${DOMAIN}`)
+      - traefik.http.services.faq.loadbalancer.server.port=3000
+      - traefik.http.routers.faq.tls=true
+      - traefik.http.routers.faq.tls.certresolver=myresolver
+networks:
+  proxy:
+    external: true
