@@ -1,65 +1,97 @@
-let keywords = JSON.parse(localStorage.getItem('keywords') || '[]').map(k => {
-    return typeof k === 'string' ? {
-        value: k,
+let topics = JSON.parse(localStorage.getItem('topics') || '[]').map(t => {
+    return typeof t === 'string' ? {
+        value: t,
         origin: 'manual',
-        parentKeyword: null,
+        parentTopic: null,
         smartTags: []
-    } : k;
+    } : t;
 });
 let questions = JSON.parse(localStorage.getItem('questions') || '[]');
 let faqs = JSON.parse(localStorage.getItem('faqs') || '[]');
-let usedKeywords = new Set(JSON.parse(localStorage.getItem('usedKeywords') || '[]'));
-let activeKeywords = new Set(JSON.parse(localStorage.getItem('activeKeywords') || '[]'));
+let usedTopics = new Set(JSON.parse(localStorage.getItem('usedTopics') || '[]'));
+let activeTopics = new Set(JSON.parse(localStorage.getItem('activeTopics') || '[]'));
 
-// Configuration des providers et catégories
+// Configuration of providers and categories
 const providers = ["GPT-4", "Claude", "Google"];
+const providerMapping = {
+    "GPT-4": "openai",
+    "Claude": "anthropic",
+    "Google": "google"
+};
+const reverseProviderMapping = {
+    "openai": "GPT-4",
+    "anthropic": "Claude",
+    "google": "Google"
+};
 const categories = [
-    "Questions habituelles",
-    "Questions techniques",
-    "Questions pour en comprendre plus",
-    "Questions farfelues",
-    "Questions non posées mais intéressantes"
+    "Common Questions",
+    "Technical Questions",
+    "In-Depth Questions",
+    "Creative Questions",
+    "Unasked but Interesting"
 ];
 
-// Configuration des modèles disponibles par provider
+// Available models configuration
 const availableModels = {
     openai: [
-        { value: "disabled", label: "Désactivé" },
-        { value: "gpt-4", label: "GPT-4" },
-        { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-        { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" }
+        { value: "disabled", label: "Disabled" },
+        { value: "gpt-4o", label: "GPT-4o" },
+        { value: "gpt-4o-mini", label: "GPT-4o-mini" }
     ],
     anthropic: [
-        { value: "disabled", label: "Désactivé" },
+        { value: "disabled", label: "Disabled" },
         { value: "claude-3-opus", label: "Claude 3 Opus" },
-        { value: "claude-3-sonnet", label: "Claude 3 Sonnet" },
-        { value: "claude-2.1", label: "Claude 2.1" }
+        { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+        { value: "claude-3.5-haiku", label: "Claude 3.5 Haiku" }
     ],
     google: [
-        { value: "disabled", label: "Désactivé" },
-        { value: "gemini-pro", label: "Gemini Pro" },
-        { value: "gemini-ultra", label: "Gemini Ultra" }
+        { value: "disabled", label: "Disabled" },
+        { value: "gemini-pro", label: "Gemini Pro" }
     ]
 };
 
 // Configuration par défaut des modèles
-let modelSettings = JSON.parse(localStorage.getItem('modelSettings') || JSON.stringify({
-    generateQuestions: {
-        openai: "gpt-4",
-        anthropic: "claude-3-opus",
-        google: "gemini-pro"
-    },
-    smartSort: {
-        openai: "disabled",
-        anthropic: "claude-3-opus",
-        google: "disabled"
-    },
+const defaultModelSettings = {
+    generateTags: { openai: "gpt-4o", anthropic: "claude-3.5-sonnet", google: "gemini-pro" },
+    smartVariations: { openai: "gpt-4o", anthropic: "claude-3.5-sonnet", google: "gemini-pro" },
+    generateQuestions: { openai: "gpt-4o", anthropic: "claude-3.5-sonnet", google: "gemini-pro" },
+    smartSort: { openai: "disabled", anthropic: "claude-3.5-sonnet", google: "disabled" },
     generateFAQ: {
-        openai: "gpt-4",
-        anthropic: "claude-3-opus",
-        google: "gemini-pro"
+        openai: { model: "gpt-4o", language: "en" },
+        anthropic: { model: "claude-3.5-sonnet", language: "en" },
+        google: { model: "gemini-pro", language: "en" }
     }
-}));
+};
+
+// Fonction utilitaire pour faire une fusion profonde des objets
+function deepMerge(target, source) {
+    for (const key in source) {
+        if (source[key] instanceof Object && key in target) {
+            deepMerge(target[key], source[key]);
+        } else {
+            target[key] = source[key];
+        }
+    }
+    return target;
+}
+
+// Initialisation des modelSettings
+const modelSettings = (() => {
+    const savedSettings = localStorage.getItem('modelSettings');
+    if (savedSettings) {
+        try {
+            const parsed = JSON.parse(savedSettings);
+            // Faire une copie profonde des paramètres par défaut
+            const mergedSettings = JSON.parse(JSON.stringify(defaultModelSettings));
+            // Fusionner avec les paramètres sauvegardés
+            return deepMerge(mergedSettings, parsed);
+        } catch (e) {
+            console.error('Error loading settings:', e);
+            return JSON.parse(JSON.stringify(defaultModelSettings));
+        }
+    }
+    return JSON.parse(JSON.stringify(defaultModelSettings));
+})();
 
 // Mode dev pour le logging
 const isDev = localStorage.getItem('devMode') === 'true';
@@ -70,52 +102,54 @@ function devLog(...args) {
 }
 
 // Fonction pour générer le prompt pour chaque catégorie
-function generatePromptForCategory(keyword, category) {
+function generatePromptForCategory(topic, category) {
     const categoryPrompts = {
-        "Questions habituelles": `Retourne moi une liste de 5 questions qui sont fréquemment posées sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions techniques": `Retourne moi une liste de 5 questions qui sont techniques sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions pour en comprendre plus": `Retourne moi une liste de 5 questions qui permettent d'aller plus loin sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions farfelues": `Retourne moi une liste de 5 questions qui sont originales ou farfelues sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions non posées mais intéressantes": `Retourne moi une liste de 5 questions qui sont rarement posées mais qui devraient l'être sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`
+        "Common Questions": `Retourne moi une liste de 5 questions qui sont fréquemment posées sur le sujet "${topic}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
+        "Technical Questions": `Retourne moi une liste de 5 questions qui sont techniques sur le sujet "${topic}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
+        "In-Depth Questions": `Retourne moi une liste de 5 questions qui permettent d'aller plus loin sur le sujet "${topic}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
+        "Creative Questions": `Retourne moi une liste de 5 questions qui sont originales ou farfelues sur le sujet "${topic}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
+        "Unasked but Interesting": `Retourne moi une liste de 5 questions qui sont rarement posées mais qui devraient l'être sur le sujet "${topic}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`
     };
     return categoryPrompts[category];
 }
 
 function saveToLocalStorage() {
-    // Normaliser tous les tags avant la sauvegarde
-    const normalizedKeywords = keywords.map(kw => ({
-        ...kw,
-        smartTags: kw.smartTags ? kw.smartTags.map(normalizeTag) : []
+    const normalizedTopics = topics.map(t => ({
+        ...t,
+        smartTags: t.smartTags ? t.smartTags.map(normalizeTag) : []
     }));
 
-    localStorage.setItem('keywords', JSON.stringify(normalizedKeywords));
+    localStorage.setItem('topics', JSON.stringify(normalizedTopics));
     localStorage.setItem('questions', JSON.stringify(questions));
     localStorage.setItem('faqs', JSON.stringify(faqs));
-    localStorage.setItem('usedKeywords', JSON.stringify([...usedKeywords]));
-    localStorage.setItem('activeKeywords', JSON.stringify([...activeKeywords]));
+    localStorage.setItem('usedTopics', JSON.stringify([...usedTopics]));
+    localStorage.setItem('activeTopics', JSON.stringify([...activeTopics]));
     localStorage.setItem('modelSettings', JSON.stringify(modelSettings));
     localStorage.setItem('tagColorMap', JSON.stringify(Array.from(tagColorMap.entries())));
+
+    devLog('Saving modelSettings:', modelSettings);
 }
 
+let topicsTable;
 let questionsTable;
 let faqTable;
 
 // Traduction française pour DataTables
 const dataTablesFrench = {
-    "emptyTable": "Aucune donnée disponible",
-    "info": "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
-    "infoEmpty": "Affichage de 0 à 0 sur 0 entrées",
-    "infoFiltered": "(filtré sur _MAX_ entrées totales)",
-    "lengthMenu": "Afficher _MENU_ entrées",
-    "loadingRecords": "Chargement...",
-    "processing": "Traitement...",
-    "search": "Rechercher :",
-    "zeroRecords": "Aucun résultat trouvé",
+    "emptyTable": "No data available",
+    "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+    "infoEmpty": "Showing 0 to 0 of 0 entries",
+    "infoFiltered": "(filtered from _MAX_ total entries)",
+    "lengthMenu": "Show _MENU_ entries",
+    "loadingRecords": "Loading...",
+    "processing": "Processing...",
+    "search": "Search:",
+    "zeroRecords": "No matching records found",
     "paginate": {
-        "first": "Premier",
-        "last": "Dernier",
-        "next": "Suivant",
-        "previous": "Précédent"
+        "first": "First",
+        "last": "Last",
+        "next": "Next",
+        "previous": "Previous"
     }
 };
 
@@ -124,12 +158,12 @@ const dataTablesConfig = {
     responsive: true,
     language: dataTablesFrench,
     pageLength: 10,
-    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Tout"]],
+    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
     dom: '<"top"lf>rt<"bottom"ip><"clear">'
 };
 
 // Ajout des variables pour la sélection
-let selectedKeywords = new Set();
+let selectedTopics = new Set();
 let isSelectAllActive = false;
 
 // Ajout d'un Map pour stocker les couleurs des tags
@@ -157,159 +191,127 @@ function getTagColorClass(tag) {
     return tagColorMap.get(normalizedTag);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // Initialiser l'interface de base immédiatement
-    refreshKeywordList();
+// Déplacer les event listeners dans une fonction qui sera appelée après le chargement du DOM
+function initializeEventListeners() {
+    const buttons = {
+        'generate-tags-btn': async () => {
+            const selectedTopics = getSelectedTopics();
+            if (selectedTopics.length === 0) {
+                alert('Please select at least one topic');
+                return;
+            }
 
-    // Initialiser les tableaux avec une configuration de base
+            for (const topic of selectedTopics) {
+                try {
+                    const tags = await generateTags(topic.name);
+                    topic.tags = tags;
+                    updateTopicInTable(topic);
+                } catch (error) {
+                    alert(`Failed to generate tags for topic: ${topic.name}`);
+                }
+            }
+        },
+        'generate-variations-btn': async () => {
+            const selectedTopics = getSelectedTopics();
+            if (selectedTopics.length === 0) {
+                alert('Please select at least one topic');
+                return;
+            }
+
+            for (const topic of selectedTopics) {
+                try {
+                    const variations = await generateSmartVariations(topic.name);
+                    topic.variations = variations;
+                    updateTopicInTable(topic);
+                } catch (error) {
+                    alert(`Failed to generate variations for topic: ${topic.name}`);
+                }
+            }
+        }
+    };
+
+    // Add event listeners safely
+    Object.entries(buttons).forEach(([id, handler]) => {
+        const button = document.getElementById(id);
+        if (button) {
+            button.addEventListener('click', handler);
+        }
+    });
+}
+
+// Mettre à jour l'initialisation du DOM
+document.addEventListener('DOMContentLoaded', () => {
+    initializeAccordions();
     initializeTables();
-
-    // Charger les données en arrière-plan
-    await loadInitialData();
-
-    // Initialiser les formulaires d'ajout manuel
-    initializeManualForms();
-
-    // Initialiser les paramètres
     initializeSettings();
-
-    // Export/Import event listeners
-    document.getElementById('export-keywords-btn').addEventListener('click', exportKeywords);
-    document.getElementById('import-keywords-btn').addEventListener('click', () => {
-        document.getElementById('import-keywords-input').click();
-    });
-    document.getElementById('import-keywords-input').addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            importKeywords(e.target.files[0]);
-            e.target.value = ''; // Reset input
-        }
-    });
-
-    // Ajout de l'event listener pour la génération des tags manquants
-    document.getElementById('generate-missing-tags-btn').addEventListener('click', generateMissingTags);
-
-    document.getElementById('export-questions-btn').addEventListener('click', exportQuestions);
-    document.getElementById('import-questions-btn').addEventListener('click', () => {
-        document.getElementById('import-questions-input').click();
-    });
-    document.getElementById('import-questions-input').addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            importQuestions(e.target.files[0]);
-            e.target.value = ''; // Reset input
-        }
-    });
-
-    // Tout sélectionner/désélectionner
-    document.getElementById('toggle-select-all-btn').addEventListener('click', () => {
-        isSelectAllActive = !isSelectAllActive;
-        const btn = document.getElementById('toggle-select-all-btn');
-        btn.textContent = isSelectAllActive ? 'Tout désélectionner' : 'Tout sélectionner';
-
-        const visibleKeywords = Array.from(document.querySelectorAll('#keyword-list li'))
-            .filter(li => li.style.display !== 'none')
-            .map(li => li.querySelector('span').textContent);
-
-        if (isSelectAllActive) {
-            visibleKeywords.forEach(kw => selectedKeywords.add(kw));
-        } else {
-            visibleKeywords.forEach(kw => selectedKeywords.delete(kw));
-        }
-        refreshKeywordList();
-    });
-
-    // Supprimer tout
-    document.getElementById('delete-all-keywords-btn').addEventListener('click', () => {
-        if (confirm('Êtes-vous sûr de vouloir supprimer tous les mots-clés ?')) {
-            keywords = [];
-            selectedKeywords.clear();
-            usedKeywords.clear();
-            activeKeywords.clear();
-            saveToLocalStorage();
-            refreshKeywordList();
-        }
-    });
-
-    // Supprimer filtrés
-    document.getElementById('delete-filtered-keywords-btn').addEventListener('click', () => {
-        const visibleKeywords = Array.from(document.querySelectorAll('#keyword-list li'))
-            .filter(li => li.style.display !== 'none')
-            .map(li => li.querySelector('span').textContent);
-
-        if (visibleKeywords.length === 0) return;
-
-        if (confirm(`Êtes-vous sûr de vouloir supprimer les ${visibleKeywords.length} mots-clés filtrés ?`)) {
-            keywords = keywords.filter(kw => !visibleKeywords.includes(kw.value));
-            visibleKeywords.forEach(kw => {
-                selectedKeywords.delete(kw);
-                usedKeywords.delete(kw);
-                activeKeywords.delete(kw);
-            });
-            saveToLocalStorage();
-            refreshKeywordList();
-        }
-    });
-
-    // Supprimer sélectionnés
-    document.getElementById('delete-selected-keywords-btn').addEventListener('click', () => {
-        if (selectedKeywords.size === 0) return;
-
-        if (confirm(`Êtes-vous sûr de vouloir supprimer les ${selectedKeywords.size} mots-clés sélectionnés ?`)) {
-            keywords = keywords.filter(kw => !selectedKeywords.has(kw.value));
-            selectedKeywords.forEach(kw => {
-                usedKeywords.delete(kw);
-                activeKeywords.delete(kw);
-            });
-            selectedKeywords.clear();
-            saveToLocalStorage();
-            refreshKeywordList();
-        }
-    });
-
-    // Restaurer la map des couleurs
-    const savedTagColorMap = localStorage.getItem('tagColorMap');
-    if (savedTagColorMap) {
-        const savedMap = JSON.parse(savedTagColorMap);
-        // Normaliser les clés de la map des couleurs
-        tagColorMap = new Map(
-            savedMap.map(([tag, color]) => [normalizeTag(tag), color])
-        );
-    }
-
-    // Normaliser les tags existants
-    keywords = keywords.map(kw => ({
-        ...kw,
-        smartTags: kw.smartTags ? kw.smartTags.map(normalizeTag) : []
-    }));
+    initializeManualForms();
+    initializeEventListeners();
 });
 
+function initializeAccordions() {
+    document.querySelectorAll('.accordion-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const section = header.closest('.accordion-section');
+            section.classList.toggle('closed');
+
+            // Save accordion state
+            const accordionStates = JSON.parse(localStorage.getItem('accordionStates') || '{}');
+            accordionStates[section.id] = !section.classList.contains('closed');
+            localStorage.setItem('accordionStates', JSON.stringify(accordionStates));
+        });
+    });
+
+    // Restore accordion states
+    const accordionStates = JSON.parse(localStorage.getItem('accordionStates') || '{}');
+    Object.entries(accordionStates).forEach(([id, isOpen]) => {
+        const section = document.getElementById(id);
+        if (section) {
+            section.classList.toggle('closed', !isOpen);
+        }
+    });
+}
+
 function initializeTables() {
-    // Configuration pour la table des questions
-    questionsTable = $('#questions-table').DataTable({
+    // Topics table
+    topicsTable = $('#topics-table').DataTable({
         ...dataTablesConfig,
         columnDefs: [
             {
-                targets: [1, 6], // Colonnes Sélection et Action
+                targets: [0, 5], // Selection and Actions columns
                 orderable: false,
                 searchable: false
             }
         ],
-        order: [[0, 'asc']], // Tri par défaut sur l'ID
+        order: [[1, 'asc']] // Sort by topic name by default
+    });
+
+    // Questions table
+    questionsTable = $('#questions-table').DataTable({
+        ...dataTablesConfig,
+        columnDefs: [
+            {
+                targets: [1, 6], // Selection and Action columns
+                orderable: false,
+                searchable: false
+            }
+        ],
+        order: [[0, 'asc']], // Sort by ID by default
         drawCallback: function() {
             updateQuestionCount();
         }
     });
 
-    // Configuration pour la table FAQ
+    // FAQ table
     faqTable = $('#faq-table').DataTable({
         ...dataTablesConfig,
         columnDefs: [
             {
-                targets: [1, 5], // Colonnes Sélection et Action
+                targets: [1, 5], // Selection and Action columns
                 orderable: false,
                 searchable: false
             }
         ],
-        order: [[0, 'asc']], // Tri par défaut sur l'ID
+        order: [[0, 'asc']], // Sort by ID by default
         drawCallback: function() {
             updateFaqCount();
         }
@@ -338,42 +340,42 @@ async function loadInitialData() {
     }
 }
 
-document.getElementById('add-keyword-btn').addEventListener('click', async () => {
-    const input = document.getElementById('keyword-input');
-    const keyword = input.value.trim();
-    if (keyword) {
-        const newKeyword = {
-            value: keyword,
+document.getElementById('add-topic-btn').addEventListener('click', async () => {
+    const input = document.getElementById('topic-input');
+    const topic = input.value.trim();
+    if (topic) {
+        const newTopic = {
+            value: topic,
             origin: 'manual',
-            parentKeyword: null,
+            parentTopic: null,
             smartTags: []
         };
 
         try {
             const existingTags = new Set(
-                keywords.flatMap(k => k.smartTags)
+                topics.flatMap(t => t.smartTags)
             );
 
             const response = await fetch('/api/generateSmartTags', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    text: keyword,
+                    text: topic,
                     existingTags: Array.from(existingTags)
                 })
             });
 
             if (response.ok) {
                 const data = await response.json();
-                newKeyword.smartTags = data.tags;
+                newTopic.smartTags = data.tags;
             }
         } catch (error) {
             console.error('Error generating smart tags:', error);
         }
 
-        keywords.push(newKeyword);
+        topics.push(newTopic);
         input.value = "";
-        refreshKeywordList();
+        refreshTopicsList();
         saveToLocalStorage();
     }
 });
@@ -386,252 +388,60 @@ function updateFaqCount() {
     document.getElementById('faq-count').textContent = faqs.length;
 }
 
-function refreshKeywordList() {
-    // Créer le conteneur de filtres s'il n'existe pas
-    let filterContainer = document.getElementById('keyword-filters');
-    if (!filterContainer) {
-        filterContainer = document.createElement('div');
-        filterContainer.id = 'keyword-filters';
-        filterContainer.className = 'keyword-filters';
-        document.getElementById('keyword-list').parentElement.insertBefore(filterContainer, document.getElementById('keyword-list'));
-    }
+function refreshTopicsList() {
+    topicsTable.clear();
 
-    // Récupérer tous les tags uniques et les trier
-    const allTags = new Set();
-    keywords.forEach(kw => {
-        if (kw.smartTags) {
-            // Normaliser les tags existants
-            kw.smartTags = kw.smartTags.map(normalizeTag);
-            kw.smartTags.forEach(tag => allTags.add(tag));
-        }
-    });
-    const sortedTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
+    topics.forEach((topic, index) => {
+        const row = [
+            `<input type="checkbox" class="topic-checkbox" ${selectedTopics.has(topic.value) ? 'checked' : ''}>`,
+            `<div class="topic-cell">${topic.value}</div>`,
+            `<div class="origin-cell"><span class="badge origin-badge" data-origin="${topic.origin}">${topic.origin === 'manual' ? 'manual' : topic.parentTopic}</span></div>`,
+            `<div class="tags-cell">${renderSmartTags(topic.smartTags)}</div>`,
+            `<div class="status-cell">${renderStatusBadge(topic.value)}</div>`,
+            renderActionButtons(topic, index)
+        ];
 
-    // Créer les filtres
-    filterContainer.innerHTML = '<div class="filter-label">Filtrer par tags:</div>';
-    const activeFilters = new Set();
-
-    sortedTags.forEach(tag => {
-        const tagBtn = document.createElement('button');
-        const colorClass = getTagColorClass(tag);
-        tagBtn.className = `filter-tag tag-badge ${colorClass}`;
-        tagBtn.innerHTML = `${tag}<span class="tag-delete">×</span>`;
-
-        // Gestionnaire pour le clic sur le tag (filtrage)
-        tagBtn.onclick = (e) => {
-            if (e.target.classList.contains('tag-delete')) return; // Ignore le clic sur la croix
-            tagBtn.classList.toggle('active');
-            if (activeFilters.has(tag)) {
-                activeFilters.delete(tag);
-            } else {
-                activeFilters.add(tag);
-            }
-            // Filtrer la liste
-            document.querySelectorAll('#keyword-list li').forEach(li => {
-                const kw = keywords.find(k => k.value === li.querySelector('span').textContent);
-                if (activeFilters.size === 0 ||
-                    (kw.smartTags && Array.from(activeFilters).every(tag => kw.smartTags.includes(tag)))) {
-                    li.style.display = '';
-                } else {
-                    li.style.display = 'none';
-                }
-            });
-        };
-
-        // Gestionnaire pour la suppression du tag
-        tagBtn.querySelector('.tag-delete').onclick = (e) => {
-            e.stopPropagation();
-            if (confirm(`Êtes-vous sûr de vouloir supprimer le tag "${tag}" de tous les mots-clés ?`)) {
-                removeTagFromAllKeywords(tag);
-            }
-        };
-
-        filterContainer.appendChild(tagBtn);
+        topicsTable.row.add(row);
     });
 
-    const list = document.getElementById('keyword-list');
-    list.innerHTML = "";
-    keywords.forEach((kw, index) => {
-        const li = document.createElement('li');
-        if (usedKeywords.has(kw.value)) {
-            li.classList.add('used');
-        }
-
-        // Checkbox de sélection
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'keyword-checkbox';
-        checkbox.checked = selectedKeywords.has(kw.value);
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                selectedKeywords.add(kw.value);
-            } else {
-                selectedKeywords.delete(kw.value);
-                isSelectAllActive = false;
-                document.getElementById('toggle-select-all-btn').textContent = 'Tout sélectionner';
-            }
-        });
-        li.appendChild(checkbox);
-
-        // Keyword text
-        const keywordSpan = document.createElement('span');
-        keywordSpan.textContent = kw.value;
-        li.appendChild(keywordSpan);
-
-        // Origin badge
-        const originBadge = document.createElement('span');
-        originBadge.className = 'badge origin-badge';
-        originBadge.textContent = kw.origin === 'manual' ? 'manual' : kw.parentKeyword;
-        originBadge.dataset.origin = kw.origin;
-        li.appendChild(originBadge);
-
-        // Smart tags container avec bouton de suppression
-        if (kw.smartTags && kw.smartTags.length > 0) {
-            const tagsContainer = document.createElement('div');
-            tagsContainer.className = 'smart-tags';
-            kw.smartTags.forEach(tag => {
-                const tagSpan = document.createElement('span');
-                const colorClass = getTagColorClass(tag);
-                tagSpan.className = `badge tag-badge ${colorClass}`;
-                tagSpan.textContent = tag;
-
-                // Ajout du bouton de suppression du tag
-                const deleteBtn = document.createElement('span');
-                deleteBtn.className = 'tag-delete';
-                deleteBtn.textContent = '×';
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    removeTagFromAllKeywords(tag);
-                };
-                tagSpan.appendChild(deleteBtn);
-
-                tagsContainer.appendChild(tagSpan);
-            });
-            li.appendChild(tagsContainer);
-        }
-
-        if (usedKeywords.has(kw.value)) {
-            const toggleBtn = document.createElement('button');
-            toggleBtn.className = `keyword-toggle ${activeKeywords.has(kw.value) ? 'active' : ''}`;
-            toggleBtn.textContent = activeKeywords.has(kw.value) ? 'Activé' : 'Désactivé';
-            toggleBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (activeKeywords.has(kw.value)) {
-                    activeKeywords.delete(kw.value);
-                    toggleBtn.textContent = 'Désactivé';
-                } else {
-                    activeKeywords.add(kw.value);
-                    toggleBtn.textContent = 'Activé';
-                }
-                toggleBtn.classList.toggle('active');
-                saveToLocalStorage();
-            };
-            li.appendChild(toggleBtn);
-        }
-
-        // Smart decline button
-        const smartDeclineBtn = document.createElement('button');
-        smartDeclineBtn.textContent = "Smart déclinaison";
-        smartDeclineBtn.className = "smart-decline-btn";
-        smartDeclineBtn.onclick = async (e) => {
-            e.stopPropagation();
-            smartDeclineBtn.disabled = true;
-            smartDeclineBtn.textContent = "Génération...";
-
-            try {
-                const response = await fetch('/api/generateKeywordVariations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword: kw.value })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Erreur lors de la génération');
-                }
-
-                const data = await response.json();
-                if (data.variations && Array.isArray(data.variations)) {
-                    // Ajouter les variations avec leur origine
-                    for (const variation of data.variations) {
-                        if (!keywords.some(k => k.value === variation)) {
-                            const newKeyword = {
-                                value: variation,
-                                origin: 'variation',
-                                parentKeyword: kw.value,
-                                smartTags: []
-                            };
-
-                            try {
-                                const tagsResponse = await fetch('/api/generateSmartTags', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ text: variation })
-                                });
-
-                                if (tagsResponse.ok) {
-                                    const tagsData = await tagsResponse.json();
-                                    newKeyword.smartTags = tagsData.tags;
-                                }
-                            } catch (error) {
-                                console.error('Error generating smart tags for variation:', error);
-                            }
-
-                            keywords.push(newKeyword);
-                        }
-                    }
-                    saveToLocalStorage();
-                    refreshKeywordList();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert(error.message);
-            } finally {
-                smartDeclineBtn.disabled = false;
-                smartDeclineBtn.textContent = "Smart déclinaison";
-            }
-        };
-        li.appendChild(smartDeclineBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = "Supprimer";
-        deleteBtn.onclick = () => {
-            keywords.splice(index, 1);
-            usedKeywords.delete(kw.value);
-            activeKeywords.delete(kw.value);
-            refreshKeywordList();
-            saveToLocalStorage();
-        };
-        li.appendChild(deleteBtn);
-        list.appendChild(li);
-    });
-
-    // Ajouter le compteur total
-    const totalDiv = document.createElement('div');
-    totalDiv.className = 'table-footer';
-    totalDiv.textContent = `Total des mots-clés : ${keywords.length}`;
-    list.parentElement.appendChild(totalDiv);
+    topicsTable.draw();
+    updateTopicCount();
 }
 
-// Modifier la fonction removeTagFromAllKeywords pour nettoyer la map des couleurs
-function removeTagFromAllKeywords(tagToRemove) {
-    const normalizedTagToRemove = normalizeTag(tagToRemove);
-    keywords = keywords.map(kw => ({
-        ...kw,
-        smartTags: kw.smartTags.map(normalizeTag).filter(tag => tag !== normalizedTagToRemove)
-    }));
+function renderSmartTags(tags) {
+    if (!tags || tags.length === 0) return '';
+    return tags.map(tag => {
+        const colorClass = getTagColorClass(tag);
+        return `<span class="badge tag-badge ${colorClass}">${tag}<span class="tag-delete">×</span></span>`;
+    }).join('');
+}
 
-    const tagStillExists = keywords.some(kw => kw.smartTags.some(tag => normalizeTag(tag) === normalizedTagToRemove));
-    if (!tagStillExists) {
-        tagColorMap.delete(normalizedTagToRemove);
+function renderStatusBadge(topicValue) {
+    const isUsed = usedTopics.has(topicValue);
+    const isActive = activeTopics.has(topicValue);
+    if (!isUsed) return '';
+    return `<span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span>`;
+}
+
+function renderActionButtons(topic, index) {
+    const buttons = [];
+
+    if (usedTopics.has(topic.value)) {
+        buttons.push(`<button class="toggle-status-btn" data-index="${index}">${activeTopics.has(topic.value) ? 'Deactivate' : 'Activate'}</button>`);
     }
 
-    saveToLocalStorage();
-    refreshKeywordList();
+    buttons.push(`<button class="smart-decline-btn" data-index="${index}">Smart Variations</button>`);
+    buttons.push(`<button class="delete-btn" data-index="${index}">Delete</button>`);
+
+    return buttons.join('');
+}
+
+function updateTopicCount() {
+    document.getElementById('topics-count').textContent = topics.length;
 }
 
 document.getElementById('generate-questions-btn').addEventListener('click', async () => {
-    const activeKw = keywords.filter(kw => !usedKeywords.has(kw.value) || activeKeywords.has(kw.value));
+    const activeKw = topics.filter(kw => !usedTopics.has(kw.value) || activeTopics.has(kw.value));
 
     if (activeKw.length === 0) {
         alert("Veuillez ajouter au moins un mot clé ou activer un mot clé existant.");
@@ -645,20 +455,21 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
     let idCounter = questions.length > 0 ? Math.max(...questions.map(q => q.id)) + 1 : 1;
     let errorCount = 0;
 
-    const generateQuestionsForProvider = async (provider, keyword, category) => {
-        const model = modelSettings.generateQuestions[provider.toLowerCase()];
+    const generateQuestionsForProvider = async (provider, topic, category) => {
+        const mappedProvider = providerMapping[provider];
+        const model = modelSettings.generateQuestions[mappedProvider];
         if (model === 'disabled') {
             devLog(`Provider ${provider} is disabled for question generation`);
             return [];
         }
 
         try {
-            devLog(`Generating questions for: ${keyword} (${provider}, ${category})`);
+            devLog(`Generating questions for: ${topic} (${provider}, ${category})`);
             const response = await fetch('/api/generateQuestions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    keywords: [keyword],
+                    keywords: [topic],
                     provider: provider,
                     category: category
                 })
@@ -667,7 +478,7 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
             if (!response.ok) {
                 const errorData = await response.json();
                 errorCount++;
-                const errorMessage = `Error with ${provider} for ${keyword} (${category}): ${errorData.error}`;
+                const errorMessage = `Error with ${provider} for ${topic} (${category}): ${errorData.error}`;
                 console.error(errorMessage);
                 devLog(`API Error:`, errorData);
                 return [];
@@ -681,7 +492,7 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
                 return [];
             }
 
-            devLog(`Generated ${data.questions.length} questions for ${keyword} (${provider}, ${category})`);
+            devLog(`Generated ${data.questions.length} questions for ${topic} (${provider}, ${category})`);
 
             return data.questions.map(q => {
                 // Vérification du format de la question
@@ -691,7 +502,7 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
 
                 return {
                     id: idCounter++,
-                    keyword,
+                    topic,
                     source: provider,
                     category,
                     question: questionText.trim()
@@ -700,19 +511,19 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
 
         } catch (error) {
             errorCount++;
-            console.error(`Error with ${provider} for ${keyword} (${category}):`, error);
+            console.error(`Error with ${provider} for ${topic} (${category}):`, error);
             devLog(`Network/Processing Error:`, error);
             return [];
         }
     };
 
     try {
-        for (const keyword of activeKw) {
-            devLog(`Processing keyword: ${keyword}`);
+        for (const topic of activeKw) {
+            devLog(`Processing topic: ${topic}`);
             // Création des promesses pour tous les providers et catégories
             const allPromises = providers.flatMap(provider =>
                 categories.map(category =>
-                    generateQuestionsForProvider(provider, keyword, category)
+                    generateQuestionsForProvider(provider, topic, category)
                         .then(newQuestions => {
                             if (newQuestions.length > 0) {
                                 devLog(`Adding ${newQuestions.length} questions from ${provider} (${category})`);
@@ -723,7 +534,7 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
                         })
                         .catch(error => {
                             errorCount++;
-                            console.error(`Failed to process ${provider} for ${keyword} (${category}):`, error);
+                            console.error(`Failed to process ${provider} for ${topic} (${category}):`, error);
                             devLog(`Processing Error:`, error);
                         })
                 )
@@ -733,8 +544,8 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
             await Promise.all(allPromises);
 
             // Marquer le mot-clé comme utilisé après le traitement
-            usedKeywords.add(keyword);
-            activeKeywords.delete(keyword);
+            usedTopics.add(topic);
+            activeTopics.delete(topic);
         }
 
         if (errorCount > 0) {
@@ -749,7 +560,7 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
     } finally {
         generateBtn.disabled = false;
         generateBtn.classList.remove('loading');
-        refreshKeywordList();
+        refreshTopicsList();
         refreshQuestionsTable();
         saveToLocalStorage();
     }
@@ -765,7 +576,7 @@ function refreshQuestionsTable() {
         `<input type="checkbox" data-id="${q.id}">`,
         `<div class="question-cell">${q.question}</div>`,
         `<div class="source-cell">${q.source}</div>`,
-        `<div class="keyword-cell">${q.keyword}</div>`,
+        `<div class="topic-cell">${q.topic}</div>`,
         `<div class="category-cell">${q.category}</div>`,
         `<button class="table-action-btn" onclick="deleteQuestion(${q.id})">Supprimer</button>`
     ]);
@@ -784,7 +595,7 @@ function refreshFaqTable() {
         `<input type="checkbox" data-id="${faq.id}">`,
         `<div class="question-cell">${faq.question}</div>`,
         `<div class="answer-cell">${faq.answer}</div>`,
-        `<div class="keyword-cell">${faq.keyword}</div>`,
+        `<div class="topic-cell">${faq.topic}</div>`,
         `<button class="table-action-btn" onclick="deleteFaq(${faq.id})">Supprimer</button>`
     ]);
 
@@ -890,9 +701,9 @@ function initializeManualForms() {
     document.getElementById('add-manual-question-btn').addEventListener('click', () => {
         const question = document.getElementById('manual-question-input').value.trim();
         const category = document.getElementById('manual-question-category').value;
-        const keyword = document.getElementById('manual-question-keyword').value.trim();
+        const topic = document.getElementById('manual-question-topic').value.trim();
 
-        if (!question || !category || !keyword) {
+        if (!question || !category || !topic) {
             alert('Veuillez remplir tous les champs');
             return;
         }
@@ -902,14 +713,14 @@ function initializeManualForms() {
             id: newId,
             question,
             category,
-            keyword,
+            topic,
             source: 'Manuel'
         });
 
         // Réinitialiser le formulaire
         document.getElementById('manual-question-input').value = '';
         document.getElementById('manual-question-category').value = '';
-        document.getElementById('manual-question-keyword').value = '';
+        document.getElementById('manual-question-topic').value = '';
 
         refreshQuestionsTable();
         saveToLocalStorage();
@@ -919,9 +730,9 @@ function initializeManualForms() {
     document.getElementById('add-manual-faq-btn').addEventListener('click', () => {
         const question = document.getElementById('manual-faq-question').value.trim();
         const answer = document.getElementById('manual-faq-answer').value.trim();
-        const keyword = document.getElementById('manual-faq-keyword').value.trim();
+        const topic = document.getElementById('manual-faq-topic').value.trim();
 
-        if (!question || !answer || !keyword) {
+        if (!question || !answer || !topic) {
             alert('Veuillez remplir tous les champs');
             return;
         }
@@ -931,13 +742,13 @@ function initializeManualForms() {
             id: newId,
             question,
             answer,
-            keyword
+            topic
         });
 
         // Réinitialiser le formulaire
         document.getElementById('manual-faq-question').value = '';
         document.getElementById('manual-faq-answer').value = '';
-        document.getElementById('manual-faq-keyword').value = '';
+        document.getElementById('manual-faq-topic').value = '';
 
         refreshFaqTable();
         saveToLocalStorage();
@@ -945,10 +756,20 @@ function initializeManualForms() {
 }
 
 function initializeSettings() {
+    devLog('Initializing settings with:', modelSettings);
+
     // Remplir les listes déroulantes avec les modèles disponibles
     document.querySelectorAll('.model-select').forEach(select => {
         const provider = select.dataset.provider;
         const step = select.dataset.step;
+
+        if (!provider || !step || !availableModels[provider]) {
+            console.warn(`Missing or invalid data attributes for select:`, select);
+            return;
+        }
+
+        // Clear existing options
+        select.innerHTML = '';
 
         // Ajouter les options
         availableModels[provider].forEach(model => {
@@ -959,192 +780,92 @@ function initializeSettings() {
         });
 
         // Sélectionner le modèle actuel
-        select.value = modelSettings[step][provider];
+        if (step === 'generateFAQ') {
+            const currentModel = modelSettings[step][provider]?.model;
+            devLog(`Setting ${step} ${provider} model to:`, currentModel);
+            if (currentModel) {
+                select.value = currentModel;
+            }
+        } else {
+            const currentModel = modelSettings[step][provider];
+            devLog(`Setting ${step} ${provider} model to:`, currentModel);
+            if (currentModel) {
+                select.value = currentModel;
+            }
+        }
 
         // Ajouter le gestionnaire d'événements
         select.addEventListener('change', () => {
-            modelSettings[step][provider] = select.value;
+            if (step === 'generateFAQ') {
+                if (!modelSettings[step][provider]) {
+                    modelSettings[step][provider] = {
+                        model: select.value,
+                        language: modelSettings[step][provider]?.language || 'en'
+                    };
+                } else {
+                    modelSettings[step][provider].model = select.value;
+                }
+            } else {
+                modelSettings[step][provider] = select.value;
+            }
+            saveToLocalStorage();
+            devLog('Updated modelSettings:', modelSettings);
+        });
+    });
+
+    // Initialize language selectors for FAQ Generation
+    document.querySelectorAll('.language-select').forEach(select => {
+        const provider = select.dataset.provider;
+
+        if (!provider || !modelSettings.generateFAQ[provider]) {
+            console.warn(`Missing or invalid provider for language select:`, select);
+            return;
+        }
+
+        const currentLanguage = modelSettings.generateFAQ[provider].language;
+        devLog(`Setting FAQ ${provider} language to:`, currentLanguage);
+        if (currentLanguage) {
+            select.value = currentLanguage;
+        }
+
+        // Add change event listener
+        select.addEventListener('change', () => {
+            if (!modelSettings.generateFAQ[provider]) {
+                modelSettings.generateFAQ[provider] = {
+                    model: modelSettings.generateFAQ[provider]?.model || 'gpt-4o',
+                    language: select.value
+                };
+            } else {
+                modelSettings.generateFAQ[provider].language = select.value;
+            }
+            saveToLocalStorage();
+            devLog('Updated language settings:', modelSettings.generateFAQ);
         });
     });
 
     // Gestionnaire pour la sauvegarde des paramètres
-    document.getElementById('save-settings-btn').addEventListener('click', () => {
-        localStorage.setItem('modelSettings', JSON.stringify(modelSettings));
-        alert('Paramètres sauvegardés avec succès');
-    });
-}
-
-// Nouvelles catégories de questions suggérées
-const additionalCategories = [
-    "Questions comparatives",
-    "Questions d'impact sociétal",
-    "Questions de perspective future",
-    "Questions de mise en pratique",
-    "Questions de contexte historique",
-    "Questions d'éthique et de responsabilité",
-    "Questions de tendances actuelles",
-    "Questions de défis et solutions",
-    "Questions d'innovation",
-    "Questions d'expérience personnelle"
-];
-
-// Nouveaux prompts pour les catégories additionnelles
-const additionalPrompts = {
-    "Questions comparatives": (keyword) => `Génère 5 questions qui comparent différents aspects de "${keyword}" avec d'autres domaines ou alternatives.`,
-    "Questions d'impact sociétal": (keyword) => `Génère 5 questions sur l'impact de "${keyword}" sur la société, la culture et les communautés.`,
-    "Questions de perspective future": (keyword) => `Génère 5 questions sur l'évolution future et les perspectives de "${keyword}" dans les 5-10 prochaines années.`,
-    "Questions de mise en pratique": (keyword) => `Génère 5 questions sur l'application pratique et la mise en œuvre de "${keyword}" dans différents contextes.`,
-    "Questions de contexte historique": (keyword) => `Génère 5 questions sur l'histoire, l'origine et l'évolution de "${keyword}".`,
-    "Questions d'éthique et de responsabilité": (keyword) => `Génère 5 questions sur les implications éthiques et les responsabilités liées à "${keyword}".`,
-    "Questions de tendances actuelles": (keyword) => `Génère 5 questions sur les tendances actuelles et les développements récents concernant "${keyword}".`,
-    "Questions de défis et solutions": (keyword) => `Génère 5 questions sur les principaux défis et les solutions potentielles liés à "${keyword}".`,
-    "Questions d'innovation": (keyword) => `Génère 5 questions sur les innovations et les avancées dans le domaine de "${keyword}".`,
-    "Questions d'expérience personnelle": (keyword) => `Génère 5 questions sur l'expérience personnelle et le vécu des gens par rapport à "${keyword}".`
-};
-
-// Export/Import functions
-function exportKeywords() {
-    const exportData = keywords.map(k => ({
-        value: k.value,
-        origin: k.origin,
-        parentKeyword: k.parentKeyword,
-        smartTags: k.smartTags
-    }));
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `keywords_export_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-}
-
-function importKeywords(file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const importedKeywords = JSON.parse(e.target.result);
-            const newKeywords = importedKeywords.filter(imported =>
-                !keywords.some(existing => existing.value === imported.value)
-            );
-
-            if (newKeywords.length > 0) {
-                keywords.push(...newKeywords);
-                saveToLocalStorage();
-                refreshKeywordList();
-                alert(`${newKeywords.length} nouveaux mots-clés importés avec succès`);
-            } else {
-                alert('Aucun nouveau mot-clé à importer');
-            }
-        } catch (error) {
-            console.error('Error importing keywords:', error);
-            alert('Erreur lors de l\'import des mots-clés. Vérifiez le format du fichier.');
-        }
-    };
-    reader.readAsText(file);
-}
-
-function exportQuestions() {
-    const exportData = questions.map(q => ({
-        question: q.question,
-        source: q.source,
-        category: q.category,
-        keyword: q.keyword
-    }));
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `questions_export_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-}
-
-function importQuestions(file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const importedQuestions = JSON.parse(e.target.result);
-            let idCounter = questions.length > 0 ? Math.max(...questions.map(q => q.id)) + 1 : 1;
-
-            const newQuestions = importedQuestions.filter(imported =>
-                !questions.some(existing => existing.question === imported.question)
-            ).map(q => ({
-                ...q,
-                id: idCounter++
-            }));
-
-            if (newQuestions.length > 0) {
-                questions.push(...newQuestions);
-                saveToLocalStorage();
-                refreshQuestionsTable();
-                alert(`${newQuestions.length} nouvelles questions importées avec succès`);
-            } else {
-                alert('Aucune nouvelle question à importer');
-            }
-        } catch (error) {
-            console.error('Error importing questions:', error);
-            alert('Erreur lors de l\'import des questions. Vérifiez le format du fichier.');
-        }
-    };
-    reader.readAsText(file);
-}
-
-async function generateMissingTags() {
-    const btn = document.getElementById('generate-missing-tags-btn');
-    btn.classList.add('loading');
-    btn.disabled = true;
-
-    try {
-        // Récupérer tous les tags existants
-        const existingTags = new Set(
-            keywords.flatMap(k => k.smartTags)
-        );
-
-        // Pour chaque mot-clé sans tags
-        const keywordsWithoutTags = keywords.filter(k => !k.smartTags || k.smartTags.length === 0);
-        let processedCount = 0;
-
-        for (const keyword of keywordsWithoutTags) {
-            try {
-                const response = await fetch('/api/generateSmartTags', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text: keyword.value,
-                        existingTags: Array.from(existingTags)
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    keyword.smartTags = data.tags;
-                    data.tags.forEach(tag => existingTags.add(tag));
-
-                    // Mise à jour progressive
-                    processedCount++;
-                    btn.textContent = `Génération... (${processedCount}/${keywordsWithoutTags.length})`;
-
-                    // Rafraîchir l'interface après chaque mot-clé traité
-                    refreshKeywordList();
-                    saveToLocalStorage();
-                }
-            } catch (error) {
-                console.error(`Error generating tags for ${keyword.value}:`, error);
-            }
-
-            // Petite pause entre chaque requête pour éviter de surcharger l'API
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-    } catch (error) {
-        console.error('Error in generateMissingTags:', error);
-    } finally {
-        btn.classList.remove('loading');
-        btn.disabled = false;
-        btn.textContent = 'Générer tags manquants';
+    const saveButton = document.getElementById('save-settings-btn');
+    if (saveButton) {
+        saveButton.addEventListener('click', () => {
+            saveToLocalStorage();
+            alert('Settings saved successfully');
+        });
     }
+}
+
+function getSelectedTopics() {
+    const selectedTopics = [];
+    topicsTable.$('input.topic-checkbox:checked').each(function() {
+        const row = topicsTable.row($(this).closest('tr'));
+        const rowData = row.data();
+        if (rowData) {
+            const topicCell = $(rowData[1]); // Index 1 contient la cellule du topic
+            const topicName = topicCell.text().trim();
+            const topic = topics.find(t => t.value === topicName);
+            if (topic) {
+                selectedTopics.push(topic);
+            }
+        }
+    });
+    return selectedTopics;
 }

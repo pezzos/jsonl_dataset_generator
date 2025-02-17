@@ -79,12 +79,13 @@ function generatePromptForCategory(keyword, category) {
 // Fonctions pour chaque provider LLM
 async function askGPT4(prompt) {
     try {
-        const response = await openai.createChatCompletion({
-            model: "gpt-4",
+        const model = modelSettings.generateQuestions.openai;
+        const completion = await openai.chat.completions.create({
+            model: model,
             messages: [{ role: "user", content: prompt }],
-            temperature: 0.7,
+            temperature: 0.7
         });
-        return response.data.choices[0].message.content.split('\n').filter(q => q.trim());
+        return completion.choices[0].message.content.split('\n').filter(q => q.trim());
     } catch (error) {
         console.error('OpenAI API error:', error);
         throw error;
@@ -93,9 +94,10 @@ async function askGPT4(prompt) {
 
 async function askClaude(prompt) {
     try {
+        const model = modelSettings.generateQuestions.anthropic;
         const message = await anthropic.messages.create({
-            model: "claude-3-opus-20240229",
-            max_tokens: 1000,
+            model: model,
+            max_tokens: 1500,
             messages: [{ role: "user", content: prompt }]
         });
         return message.content[0].text.split('\n').filter(q => q.trim());
@@ -141,55 +143,48 @@ ${questions.map(q => `"${q.question}"`).join('\n')}`;
 
 // Endpoint pour générer des questions à partir des mots clés
 app.post('/api/generateQuestions', async (req, res) => {
-    const { keywords, provider, category } = req.body;
-    devLog('Received request for questions:', { keywords, provider, category });
+    const { topics, provider, category } = req.body;
 
-    if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
-        devLog('Invalid keywords:', keywords);
-        return res.status(400).json({ error: "Veuillez fournir une liste de mots clés." });
+    if (!topics || !Array.isArray(topics) || topics.length === 0) {
+        return res.status(400).json({ error: "Please provide a list of topics." });
     }
     if (!provider || !category) {
-        devLog('Missing provider or category:', { provider, category });
-        return res.status(400).json({ error: "Veuillez spécifier un provider et une catégorie." });
+        return res.status(400).json({ error: "Please specify a provider and category." });
     }
 
     try {
-        const keyword = keywords[0];
-        const prompt = generatePromptForCategory(keyword, category);
+        const topic = topics[0];
+        const prompt = generatePromptForCategory(topic, category);
         devLog('Generated prompt:', prompt);
         let questions;
 
         switch (provider) {
             case "GPT-4":
                 if (!openai) {
-                    devLog('OpenAI API not configured');
-                    return res.status(400).json({ error: "OpenAI API non configurée" });
+                    return res.status(400).json({ error: "OpenAI API not configured" });
                 }
                 questions = await askGPT4(prompt);
                 break;
             case "Claude":
                 if (!anthropic) {
-                    devLog('Anthropic API not configured');
-                    return res.status(400).json({ error: "Anthropic API non configurée" });
+                    return res.status(400).json({ error: "Anthropic API not configured" });
                 }
                 questions = await askClaude(prompt);
                 break;
             case "Google":
                 if (!genAI) {
-                    devLog('Google API not configured');
-                    return res.status(400).json({ error: "Google API non configurée" });
+                    return res.status(400).json({ error: "Google API not configured" });
                 }
                 questions = await askGoogle(prompt);
                 break;
             default:
-                devLog('Unsupported provider:', provider);
-                return res.status(400).json({ error: "Provider non supporté" });
+                return res.status(400).json({ error: "Unsupported provider" });
         }
 
         devLog('Generated questions:', questions);
 
         const result = questions.map(question => ({
-            keyword,
+            topic,
             source: provider,
             category,
             question: question.trim()
@@ -205,7 +200,7 @@ app.post('/api/generateQuestions', async (req, res) => {
             response: error.response?.data
         });
         res.status(500).json({
-            error: "Erreur lors de la génération des questions.",
+            error: "Error generating questions.",
             details: isDev ? error.message : undefined
         });
     }
@@ -266,8 +261,8 @@ app.post('/api/smartSort', async (req, res) => {
 
         // Tri final par mot-clé puis par catégorie
         processedQuestions.sort((a, b) => {
-            if (a.keyword !== b.keyword) {
-                return a.keyword.localeCompare(b.keyword);
+            if (a.topic !== b.topic) {
+                return a.topic.localeCompare(b.topic);
             }
             return a.category.localeCompare(b.category);
         });
@@ -301,7 +296,7 @@ app.post('/api/generateFAQ', (req, res) => {
         const combinedAnswer = `Réponse combinée: ${providerAnswers.join(" | ")}`;
         return {
             id: q.id,
-            keyword: q.keyword,
+            topic: q.topic,
             question: q.question,
             answer: combinedAnswer
         };
@@ -332,38 +327,38 @@ app.get('/api/providers', (req, res) => {
 });
 
 // Endpoint pour générer des déclinaisons de mots-clés
-app.post('/api/generateKeywordVariations', async (req, res) => {
-    const { keyword } = req.body;
+app.post('/api/generateTopicVariations', async (req, res) => {
+    const { topic } = req.body;
 
-    if (!keyword) {
-        return res.status(400).json({ error: "Veuillez fournir un mot-clé." });
+    if (!topic) {
+        return res.status(400).json({ error: "Please provide a topic." });
     }
 
     try {
         if (!anthropic) {
-            return res.status(400).json({ error: "Service de génération non disponible." });
+            return res.status(400).json({ error: "Generation service not available." });
         }
 
-        const prompt = `Tu es un expert en génération de contenu et en SEO.
-Je te donne un mot-clé et tu dois générer 3 à 5 variations ou déclinaisons pertinentes de ce mot-clé.
-Ces variations doivent être des sujets connexes ou des aspects spécifiques liés au mot-clé principal.
+        const prompt = `You are an expert in content generation and SEO.
+I'll give you a topic and you need to generate 3 to 5 relevant variations or related topics.
+These variations should be related subjects or specific aspects of the main topic.
 
-Mot-clé: "${keyword}"
+Topic: "${topic}"
 
-Instructions spécifiques:
-1. Les variations doivent être en français
-2. Chaque variation doit être pertinente et apporter une valeur ajoutée
-3. Évite les répétitions et les variations trop similaires
-4. Les variations doivent être naturelles et couramment recherchées
-5. Garde un format cohérent (pas de majuscules aléatoires, ponctuation cohérente)
+Specific instructions:
+1. Variations should be in English
+2. Each variation must be relevant and add value
+3. Avoid repetitions and too similar variations
+4. Variations should be natural and commonly searched
+5. Keep a consistent format (no random capitals, consistent punctuation)
 
-IMPORTANT: Réponds UNIQUEMENT avec un tableau JSON contenant les variations, rien d'autre.
-Format attendu: ["variation1", "variation2", "variation3"]`;
+IMPORTANT: Reply ONLY with a JSON array containing the variations, nothing else.
+Expected format: ["variation1", "variation2", "variation3"]`;
 
-        devLog('Generating variations for keyword:', keyword);
+        devLog('Generating variations for topic:', topic);
 
         const message = await anthropic.messages.create({
-            model: "claude-3-opus-20240229",
+            model: "claude-3.5-sonnet",
             max_tokens: 500,
             messages: [{ role: "user", content: prompt }],
             temperature: 0.7
@@ -371,19 +366,16 @@ Format attendu: ["variation1", "variation2", "variation3"]`;
 
         let variations;
         try {
-            // Tentative de parse du JSON
             variations = JSON.parse(message.content[0].text.trim());
 
-            // Validation du format
             if (!Array.isArray(variations)) {
                 throw new Error('Response is not an array');
             }
 
-            // Nettoyage et validation des variations
             variations = variations
                 .filter(v => typeof v === 'string' && v.trim().length > 0)
                 .map(v => v.trim())
-                .filter((v, i, arr) => arr.indexOf(v) === i); // Supprime les doublons
+                .filter((v, i, arr) => arr.indexOf(v) === i);
 
             if (variations.length === 0) {
                 throw new Error('No valid variations generated');
@@ -392,23 +384,22 @@ Format attendu: ["variation1", "variation2", "variation3"]`;
         } catch (parseError) {
             devLog('Parse error:', parseError);
             devLog('Raw response:', message.content[0].text);
-            throw new Error('Format de réponse invalide');
+            throw new Error('Invalid response format');
         }
 
         devLog('Generated variations:', variations);
         res.json({ variations });
 
     } catch (error) {
-        console.error('Error generating keyword variations:', error);
+        console.error('Error generating topic variations:', error);
         devLog('Error details:', {
             message: error.message,
             stack: error.stack
         });
 
-        // Message d'erreur plus descriptif pour l'utilisateur
-        const errorMessage = error.message === 'Format de réponse invalide'
-            ? "Erreur lors de la génération des variations. Veuillez réessayer."
-            : "Une erreur est survenue. Veuillez réessayer plus tard.";
+        const errorMessage = error.message === 'Invalid response format'
+            ? "Error generating variations. Please try again."
+            : "An error occurred. Please try again later.";
 
         res.status(500).json({
             error: errorMessage,

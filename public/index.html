@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Générateur de FAQ</title>
-    <!-- Préchargement des ressources critiques -->
+    <title>FAQ Generator</title>
+    <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="https://code.jquery.com/jquery-3.7.1.min.js" as="script">
@@ -19,135 +19,223 @@
 </head>
 
 <body>
-    <h1>Générateur de FAQ</h1>
-    <section id="keyword-section">
-        <h2>Mots clés</h2>
-        <input type="text" id="keyword-input" placeholder="Entrez un mot clé ou une phrase">
-        <button id="add-keyword-btn">Ajouter</button>
-        <button id="generate-missing-tags-btn">Générer tags manquants</button>
-        <button id="export-keywords-btn">Exporter</button>
-        <input type="file" id="import-keywords-input" accept=".txt" style="display: none;">
-        <button id="import-keywords-btn">Importer</button>
-        <div class="keyword-actions">
-            <button id="delete-all-keywords-btn">Supprimer tout</button>
-            <button id="delete-filtered-keywords-btn">Supprimer filtrés</button>
-            <button id="delete-selected-keywords-btn">Supprimer sélectionnés</button>
-            <button id="toggle-select-all-btn">Tout sélectionner</button>
+    <h1>FAQ Generator</h1>
+
+    <!-- Topics Section -->
+    <section id="topics-section" class="accordion-section">
+        <div class="accordion-header">
+            <div class="header-content">
+                <h2>Topics</h2>
+                <span class="section-description">Here we will generate all the topics we want to cover.</span>
+            </div>
+            <button class="accordion-toggle">▼</button>
         </div>
-        <ul id="keyword-list"></ul>
-    </section>
-    <section id="question-generation">
-        <h2>Génération des Questions</h2>
-        <button id="generate-questions-btn">Générer Questions</button>
-        <button id="export-questions-btn">Exporter</button>
-        <input type="file" id="import-questions-input" accept=".txt" style="display: none;">
-        <button id="import-questions-btn">Importer</button>
-        <div class="table-container">
-            <table id="questions-table" class="display responsive nowrap" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Sélection</th>
-                        <th>Question</th>
-                        <th>Source</th>
-                        <th>Mot clé</th>
-                        <th>Catégorie</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Les questions generées seront affichées ici -->
-                </tbody>
-            </table>
-            <div class="table-footer">
-                Total des questions : <span id="questions-count">0</span>
+        <div class="accordion-content">
+            <input type="text" id="topic-input" placeholder="Enter a topic or phrase">
+            <button id="add-topic-btn">Add</button>
+            <button id="generate-missing-tags-btn">Generate Missing Tags</button>
+            <button id="export-topics-btn">Export</button>
+            <input type="file" id="import-topics-input" accept=".txt" style="display: none;">
+            <button id="import-topics-btn">Import</button>
+            <div class="topic-actions">
+                <button id="delete-all-topics-btn">Delete All</button>
+                <button id="delete-filtered-topics-btn">Delete Filtered</button>
+                <button id="delete-selected-topics-btn">Delete Selected</button>
+                <button id="toggle-select-all-btn">Select All</button>
+            </div>
+            <div id="topic-filters"></div>
+            <div class="table-container">
+                <table id="topics-table" class="display responsive nowrap" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Selection</th>
+                            <th>Topic</th>
+                            <th>Origin</th>
+                            <th>Tags</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="topics-list">
+                        <!-- Topics will be dynamically added here -->
+                    </tbody>
+                </table>
             </div>
         </div>
-        <div class="manual-add-form">
-            <h3>Ajouter une question manuellement</h3>
-            <input type="text" id="manual-question-input" placeholder="Question">
-            <select id="manual-question-category">
-                <option value="">Sélectionner une catégorie</option>
-                <option value="Questions habituelles">Questions habituelles</option>
-                <option value="Questions techniques">Questions techniques</option>
-                <option value="Questions pour en comprendre plus">Questions pour en comprendre plus</option>
-                <option value="Questions farfelues">Questions farfelues</option>
-                <option value="Questions non posées mais intéressantes">Questions non posées mais intéressantes</option>
-            </select>
-            <input type="text" id="manual-question-keyword" placeholder="Mot clé">
-            <button id="add-manual-question-btn">Ajouter la question</button>
-        </div>
-        <button id="smart-sort-btn">Smart Sort</button>
-        <button id="delete-selected-questions-btn">Supprimer sélectionnées</button>
-    </section>
-    <section id="faq-generation">
-        <h2>Génération de la FAQ</h2>
-        <button id="generate-faq-btn">Générer FAQ</button>
-        <div class="table-container">
-            <table id="faq-table" class="display responsive nowrap" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Sélection</th>
-                        <th>Question</th>
-                        <th>Réponse</th>
-                        <th>Mot clé</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- La FAQ générée sera affichée ici -->
-                </tbody>
-            </table>
-            <div class="table-footer">
-                Total des réponses : <span id="faq-count">0</span>
-            </div>
-        </div>
-        <div class="manual-add-form">
-            <h3>Ajouter une FAQ manuellement</h3>
-            <input type="text" id="manual-faq-question" placeholder="Question">
-            <textarea id="manual-faq-answer" placeholder="Réponse"></textarea>
-            <input type="text" id="manual-faq-keyword" placeholder="Mot clé">
-            <button id="add-manual-faq-btn">Ajouter la FAQ</button>
-        </div>
-        <button id="delete-selected-faq-btn">Supprimer sélectionnées</button>
-        <button id="export-faq-btn">Exporter FAQ (JSONL)</button>
     </section>
 
-    <!-- Nouvelle section pour les paramètres -->
-    <section id="settings-section" class="settings-section">
-        <h2>Paramètres</h2>
-        <table id="settings-table">
-            <thead>
-                <tr>
-                    <th>Étape</th>
-                    <th>OpenAI</th>
-                    <th>Anthropic</th>
-                    <th>Google</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Génération des questions</td>
-                    <td><select class="model-select" data-step="generateQuestions" data-provider="openai"></select></td>
-                    <td><select class="model-select" data-step="generateQuestions" data-provider="anthropic"></select></td>
-                    <td><select class="model-select" data-step="generateQuestions" data-provider="google"></select></td>
-                </tr>
-                <tr>
-                    <td>Smart Sort</td>
-                    <td><select class="model-select" data-step="smartSort" data-provider="openai"></select></td>
-                    <td><select class="model-select" data-step="smartSort" data-provider="anthropic"></select></td>
-                    <td><select class="model-select" data-step="smartSort" data-provider="google"></select></td>
-                </tr>
-                <tr>
-                    <td>Génération de la FAQ</td>
-                    <td><select class="model-select" data-step="generateFAQ" data-provider="openai"></select></td>
-                    <td><select class="model-select" data-step="generateFAQ" data-provider="anthropic"></select></td>
-                    <td><select class="model-select" data-step="generateFAQ" data-provider="google"></select></td>
-                </tr>
-            </tbody>
-        </table>
-        <button id="save-settings-btn">Sauvegarder les paramètres</button>
+    <!-- Question Generation Section -->
+    <section id="question-generation" class="accordion-section">
+        <div class="accordion-header">
+            <div class="header-content">
+                <h2>Question Generation</h2>
+                <span class="section-description">Here we will prepare all the questions we can ask to master the subject.</span>
+            </div>
+            <button class="accordion-toggle">▼</button>
+        </div>
+        <div class="accordion-content">
+            <button id="generate-questions-btn">Generate Questions</button>
+            <button id="export-questions-btn">Export</button>
+            <input type="file" id="import-questions-input" accept=".txt" style="display: none;">
+            <button id="import-questions-btn">Import</button>
+            <div class="table-container">
+                <table id="questions-table" class="display responsive nowrap" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Selection</th>
+                            <th>Question</th>
+                            <th>Source</th>
+                            <th>Topic</th>
+                            <th>Category</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Generated questions will appear here -->
+                    </tbody>
+                </table>
+                <div class="table-footer">
+                    Total questions: <span id="questions-count">0</span>
+                </div>
+            </div>
+            <div class="manual-add-form">
+                <h3>Add Question Manually</h3>
+                <input type="text" id="manual-question-input" placeholder="Question">
+                <select id="manual-question-category">
+                    <option value="">Select a category</option>
+                    <option value="Common Questions">Common Questions</option>
+                    <option value="Technical Questions">Technical Questions</option>
+                    <option value="In-Depth Questions">In-Depth Questions</option>
+                    <option value="Creative Questions">Creative Questions</option>
+                    <option value="Unasked but Interesting">Unasked but Interesting</option>
+                </select>
+                <input type="text" id="manual-question-topic" placeholder="Topic">
+                <button id="add-manual-question-btn">Add Question</button>
+            </div>
+            <button id="smart-sort-btn">Smart Sort</button>
+            <button id="delete-selected-questions-btn">Delete Selected</button>
+        </div>
+    </section>
+
+    <!-- FAQ Generation Section -->
+    <section id="faq-generation" class="accordion-section">
+        <div class="accordion-header">
+            <div class="header-content">
+                <h2>FAQ Generation</h2>
+                <span class="section-description">Here we will generate all the answers to the questions.</span>
+            </div>
+            <button class="accordion-toggle">▼</button>
+        </div>
+        <div class="accordion-content">
+            <button id="generate-faq-btn">Generate FAQ</button>
+            <div class="table-container">
+                <table id="faq-table" class="display responsive nowrap" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Selection</th>
+                            <th>Question</th>
+                            <th>Answer</th>
+                            <th>Topic</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Generated FAQ will appear here -->
+                    </tbody>
+                </table>
+                <div class="table-footer">
+                    Total answers: <span id="faq-count">0</span>
+                </div>
+            </div>
+            <div class="manual-add-form">
+                <h3>Add FAQ Manually</h3>
+                <input type="text" id="manual-faq-question" placeholder="Question">
+                <textarea id="manual-faq-answer" placeholder="Answer"></textarea>
+                <input type="text" id="manual-faq-topic" placeholder="Topic">
+                <button id="add-manual-faq-btn">Add FAQ</button>
+            </div>
+            <button id="delete-selected-faq-btn">Delete Selected</button>
+            <button id="export-faq-btn">Export FAQ (JSONL)</button>
+        </div>
+    </section>
+
+    <!-- Settings Section -->
+    <section id="settings-section" class="accordion-section settings-section">
+        <div class="accordion-header">
+            <h2>Settings</h2>
+            <button class="accordion-toggle">▼</button>
+        </div>
+        <div class="accordion-content">
+            <table id="settings-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>OpenAI</th>
+                        <th>Anthropic</th>
+                        <th>Google</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Generate Tags</td>
+                        <td><select class="model-select" data-step="generateTags" data-provider="openai"></select></td>
+                        <td><select class="model-select" data-step="generateTags" data-provider="anthropic"></select></td>
+                        <td><select class="model-select" data-step="generateTags" data-provider="google"></select></td>
+                    </tr>
+                    <tr>
+                        <td>Smart Variations</td>
+                        <td><select class="model-select" data-step="smartVariations" data-provider="openai"></select></td>
+                        <td><select class="model-select" data-step="smartVariations" data-provider="anthropic"></select></td>
+                        <td><select class="model-select" data-step="smartVariations" data-provider="google"></select></td>
+                    </tr>
+                    <tr>
+                        <td>Question Generation</td>
+                        <td><select class="model-select" data-step="generateQuestions" data-provider="openai"></select></td>
+                        <td><select class="model-select" data-step="generateQuestions" data-provider="anthropic"></select></td>
+                        <td><select class="model-select" data-step="generateQuestions" data-provider="google"></select></td>
+                    </tr>
+                    <tr>
+                        <td>Smart Sort</td>
+                        <td><select class="model-select" data-step="smartSort" data-provider="openai"></select></td>
+                        <td><select class="model-select" data-step="smartSort" data-provider="anthropic"></select></td>
+                        <td><select class="model-select" data-step="smartSort" data-provider="google"></select></td>
+                    </tr>
+                    <tr>
+                        <td>FAQ Generation</td>
+                        <td>
+                            <select class="model-select" data-step="generateFAQ" data-provider="openai"></select>
+                            <select class="language-select" data-step="generateFAQ" data-provider="openai">
+                                <option value="en">English</option>
+                                <option value="fr">French</option>
+                                <option value="es">Spanish</option>
+                                <option value="de">German</option>
+                            </select>
+                        </td>
+                        <td>
+                            <select class="model-select" data-step="generateFAQ" data-provider="anthropic"></select>
+                            <select class="language-select" data-step="generateFAQ" data-provider="anthropic">
+                                <option value="en">English</option>
+                                <option value="fr">French</option>
+                                <option value="es">Spanish</option>
+                                <option value="de">German</option>
+                            </select>
+                        </td>
+                        <td>
+                            <select class="model-select" data-step="generateFAQ" data-provider="google"></select>
+                            <select class="language-select" data-step="generateFAQ" data-provider="google">
+                                <option value="en">English</option>
+                                <option value="fr">French</option>
+                                <option value="es">Spanish</option>
+                                <option value="de">German</option>
+                            </select>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <button id="save-settings-btn">Save Settings</button>
+        </div>
     </section>
 
     <!-- Scripts -->

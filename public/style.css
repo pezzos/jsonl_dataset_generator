@@ -600,3 +600,191 @@ table.dataTable tbody td:first-child {
     align-items: center;
     gap: 10px;
 }
+
+/* Accordion Styles */
+.accordion-section {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: white;
+    overflow: hidden;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.accordion-header:hover {
+    background: #f1f5f9;
+}
+
+.accordion-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.accordion-toggle {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    color: var(--text);
+    box-shadow: none;
+}
+
+.accordion-toggle:hover {
+    background: none;
+    transform: none;
+    box-shadow: none;
+}
+
+.accordion-section.closed .accordion-toggle {
+    transform: rotate(-90deg);
+}
+
+.accordion-content {
+    padding: 1rem;
+    transition: max-height 0.3s ease-out;
+    overflow: hidden;
+}
+
+.accordion-section.closed .accordion-content {
+    display: none;
+}
+
+/* Topics Table Styles */
+#topics-table {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+#topics-table th,
+#topics-table td {
+    padding: 0.75rem;
+    text-align: left;
+    vertical-align: middle;
+}
+
+#topics-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+#topics-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+#topics-table .topic-cell {
+    min-width: 150px;
+    max-width: 300px;
+}
+
+#topics-table .tags-cell {
+    min-width: 200px;
+}
+
+#topics-table .status-cell {
+    width: 100px;
+}
+
+#topics-table .actions-cell {
+    width: 150px;
+    white-space: nowrap;
+}
+
+/* Topic Actions */
+.topic-actions {
+    margin: 1rem 0;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background-color: #10b981;
+    color: white;
+}
+
+.status-badge.inactive {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+    .topic-actions {
+        flex-direction: column;
+    }
+
+    .topic-actions button {
+        width: 100%;
+    }
+
+    #topics-table {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
+/* Header Content Layout */
+.header-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.section-description {
+    color: #6b7280;
+    font-size: 0.9rem;
+    font-weight: normal;
+    margin-left: 1rem;
+    flex: 1;
+}
+
+/* Accordion Header Layout */
+.accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.accordion-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    min-width: 200px;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .section-description {
+        margin-left: 0;
+        font-size: 0.85rem;
+    }
+}
