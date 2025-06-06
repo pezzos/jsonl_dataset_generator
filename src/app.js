@@ -508,12 +508,16 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.listen(port, () => {
-    console.log(`FAQ Generator app listening at http://localhost:${port}`);
-    devLog('Server started in development mode');
-    devLog('Environment:', {
-        NODE_ENV: process.env.NODE_ENV,
-        providers,
-        categories
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`FAQ Generator app listening at http://localhost:${port}`);
+        devLog('Server started in development mode');
+        devLog('Environment:', {
+            NODE_ENV: process.env.NODE_ENV,
+            providers,
+            categories
+        });
     });
-});
+}
+
+module.exports = app;

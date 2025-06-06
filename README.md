@@ -35,6 +35,14 @@ npm install
 npm start
 ```
 
+## Testing
+
+Run the automated test suite with:
+
+```bash
+npm test
+```
+
 ## How It Works
 
 1. Input topics or knowledge areas
