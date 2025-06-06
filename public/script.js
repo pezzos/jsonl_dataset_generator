@@ -469,7 +469,7 @@ document.getElementById('generate-questions-btn').addEventListener('click', asyn
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    keywords: [topic],
+                    topics: [topic],
                     provider: provider,
                     category: category
                 })

@@ -10,6 +10,15 @@ const app = express();
 const port = process.env.PORT || 3000;
 const isDev = process.env.NODE_ENV === 'development';
 
+// Default model configuration for each provider
+const modelSettings = {
+  generateQuestions: {
+    openai: 'gpt-4o',
+    anthropic: 'claude-3.5-sonnet',
+    google: 'gemini-pro'
+  }
+};
+
 // Configuration CORS
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
