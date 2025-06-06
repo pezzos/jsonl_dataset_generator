@@ -1,6 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cors = require('cors');
@@ -54,9 +54,9 @@ const categories = [
     "Questions non posées mais intéressantes"
 ];
 // Initialize API clients
-const openai = process.env.OPENAI_API_KEY ? new OpenAIApi(new Configuration({
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-})) : null;
+}) : null;
 
 const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,

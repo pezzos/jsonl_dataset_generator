@@ -20,6 +20,8 @@ Generate rich JSONL datasets from topics to fine-tune Large Language Models. Thi
 
 ## Quick Start
 
+This project requires **Node.js 20** or later.
+
 1. Clone the repository
 2. Copy `.env.example` to `.env` and configure your AI provider keys
 3. Run with Docker:
