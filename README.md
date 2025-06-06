@@ -54,6 +54,11 @@ npm test
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+To check code style run:
+
+```bash
+npx eslint src
+```
 
 ## Roadmap
 

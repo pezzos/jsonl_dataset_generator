@@ -24,7 +24,7 @@ describe('API Endpoints', () => {
       .post('/api/generateFAQ')
       .send({ questions });
     expect(res.statusCode).toBe(200);
-    expect(res.body.faqs[0].answer).toContain('Réponse combinée:');
+    expect(res.body.faqs[0].answer).toContain('Combined answer:');
   });
 
   test('GET /api/exportFAQ returns JSONL after generation', async () => {
