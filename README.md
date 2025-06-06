@@ -60,6 +60,10 @@ To check code style run:
 npx eslint src
 ```
 
+### Recent Changes
+
+- Fixed ESLint errors in `src/app.js` and removed unused `generatedQuestions` variable.
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for planned features and improvements.
