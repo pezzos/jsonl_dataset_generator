@@ -1,6 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cors = require('cors');
@@ -27,10 +27,10 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
-// Stockage en mémoire pour la session (demo)
+// In-memory storage for the session (demo)
 let generatedQuestions = [];
 let finalFAQs = [];
-// Récupération des fournisseurs selon les clés définies dans le .env
+// Retrieve providers based on the keys defined in the .env
 let providers = [];
 if (process.env.OPENAI_API_KEY) {
     providers.push("GPT-4");
@@ -45,18 +45,18 @@ if (process.env.GOOGLE_API_KEY) {
     devLog('Google API configured');
 }
 devLog('Available providers:', providers);
-// Définition des catégories de questions
+// Question categories definition
 const categories = [
-    "Questions habituelles",
-    "Questions techniques",
-    "Questions pour en comprendre plus",
-    "Questions farfelues",
-    "Questions non posées mais intéressantes"
+    "Common Questions",
+    "Technical Questions",
+    "In-Depth Questions",
+    "Creative Questions",
+    "Unasked but Interesting"
 ];
 // Initialize API clients
-const openai = process.env.OPENAI_API_KEY ? new OpenAIApi(new Configuration({
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-})) : null;
+}) : null;
 
 const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -64,14 +64,14 @@ const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
 
 const genAI = process.env.GOOGLE_API_KEY ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY) : null;
 
-// Fonction pour générer le prompt pour chaque catégorie
+// Function to generate the prompt for each category
 function generatePromptForCategory(keyword, category) {
     const categoryPrompts = {
-        "Questions habituelles": `Retourne moi une liste de 5 questions qui sont fréquemment posées sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions techniques": `Retourne moi une liste de 5 questions qui sont techniques sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions pour en comprendre plus": `Retourne moi une liste de 5 questions qui permettent d'aller plus loin sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions farfelues": `Retourne moi une liste de 5 questions qui sont originales ou farfelues sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`,
-        "Questions non posées mais intéressantes": `Retourne moi une liste de 5 questions qui sont rarement posées mais qui devraient l'être sur le sujet "${keyword}". Réponds uniquement avec les questions, une par ligne, sans numérotation ni formatage.`
+        "Common Questions": `Return a list of 5 questions that are frequently asked about the topic "${keyword}". Reply only with the questions, one per line, without numbering or formatting.`,
+        "Technical Questions": `Return a list of 5 technical questions on the topic "${keyword}". Reply only with the questions, one per line, without numbering or formatting.`,
+        "In-Depth Questions": `Return a list of 5 questions that allow deeper understanding of the topic "${keyword}". Reply only with the questions, one per line, without numbering or formatting.`,
+        "Creative Questions": `Return a list of 5 original or offbeat questions about the topic "${keyword}". Reply only with the questions, one per line, without numbering or formatting.`,
+        "Unasked but Interesting": `Return a list of 5 questions that are rarely asked but should be about the topic "${keyword}". Reply only with the questions, one per line, without numbering or formatting.`
     };
     return categoryPrompts[category];
 }
@@ -126,22 +126,22 @@ function devLog(...args) {
     }
 }
 
-// Fonction pour générer le prompt de regroupement
+// Function to generate the grouping prompt
 function generateGroupingPrompt(questions) {
-    return `Analyse cette liste de questions et regroupe celles qui sont similaires ou qui traitent du même sujet.
-Pour chaque groupe, choisis la question la plus complète et pertinente.
-Réponds uniquement avec un tableau JSON contenant les questions regroupées, avec cette structure :
+    return `Analyze this list of questions and group those that are similar or deal with the same topic.
+For each group, choose the most complete and relevant question.
+Reply only with a JSON array containing the grouped questions, using this structure:
 [{
-    "selectedQuestion": "La question choisie",
-    "similarQuestions": ["Question similaire 1", "Question similaire 2"],
-    "explanation": "Brève explication du regroupement"
+    "selectedQuestion": "The chosen question",
+    "similarQuestions": ["Similar question 1", "Similar question 2"],
+    "explanation": "Brief explanation of the grouping"
 }]
 
-Questions à analyser :
+Questions to analyze:
 ${questions.map(q => `"${q.question}"`).join('\n')}`;
 }
 
-// Endpoint pour générer des questions à partir des mots clés
+// Endpoint to generate questions from keywords
 app.post('/api/generateQuestions', async (req, res) => {
     const { topics, provider, category } = req.body;
 
@@ -205,17 +205,17 @@ app.post('/api/generateQuestions', async (req, res) => {
         });
     }
 });
-// Endpoint pour smart sort (déduplication et tri intelligent)
+// Endpoint for smart sort (deduplication and intelligent sorting)
 app.post('/api/smartSort', async (req, res) => {
     const { questions } = req.body;
     if (!questions || !Array.isArray(questions)) {
-        return res.status(400).json({ error: "Veuillez fournir une liste de questions." });
+        return res.status(400).json({ error: "Please provide a list of questions." });
     }
 
     try {
-        // Utiliser Claude pour l'analyse (car plus puissant pour ce type de tâche)
+        // Use Claude for analysis (more powerful for this kind of task)
         if (!anthropic) {
-            return res.status(400).json({ error: "Service d'analyse non disponible." });
+            return res.status(400).json({ error: "Analysis service unavailable." });
         }
 
         devLog('Starting smart sort analysis');
@@ -230,12 +230,12 @@ app.post('/api/smartSort', async (req, res) => {
         const analysis = JSON.parse(message.content[0].text);
         devLog('Received analysis:', analysis);
 
-        // Créer un nouvel ensemble de questions en conservant les métadonnées
+        // Create a new set of questions while keeping the metadata
         const processedQuestions = [];
         const usedQuestions = new Set();
 
         analysis.forEach(group => {
-            // Trouver la question originale correspondante
+            // Find the corresponding original question
             const selectedQ = questions.find(q => q.question === group.selectedQuestion) ||
                             questions.find(q => group.similarQuestions.includes(q.question));
 
@@ -252,14 +252,14 @@ app.post('/api/smartSort', async (req, res) => {
             }
         });
 
-        // Ajouter les questions qui n'ont pas été regroupées
+        // Add the questions that were not grouped
         questions.forEach(q => {
             if (!usedQuestions.has(q.question)) {
                 processedQuestions.push(q);
             }
         });
 
-        // Tri final par mot-clé puis par catégorie
+        // Final sort by keyword then by category
         processedQuestions.sort((a, b) => {
             if (a.topic !== b.topic) {
                 return a.topic.localeCompare(b.topic);
@@ -276,24 +276,24 @@ app.post('/api/smartSort', async (req, res) => {
             stack: error.stack
         });
         res.status(500).json({
-            error: "Erreur lors du tri intelligent.",
+            error: "Error during smart sort.",
             details: isDev ? error.message : undefined
         });
     }
 });
-// Endpoint pour générer la FAQ en combinant les réponses des différents LLM
+// Endpoint to generate the FAQ by combining responses from different LLMs
 app.post('/api/generateFAQ', (req, res) => {
     const { questions } = req.body;
     if (!questions || !Array.isArray(questions) || questions.length === 0) {
-        return res.status(400).json({ error: "Veuillez fournir une liste de questions." });
+        return res.status(400).json({ error: "Please provide a list of questions." });
     }
     let faqs = questions.map(q => {
-        // Simulation d'appels à chaque fournisseur pour obtenir une réponse
+        // Simulate calls to each provider to get an answer
         const providerAnswers = providers.map(provider => {
-            return `Réponse de ${provider} pour "${q.question}"`;
+            return `Answer from ${provider} for "${q.question}"`;
         });
-        // Combinaison des réponses (en simulant une fusion via LLM)
-        const combinedAnswer = `Réponse combinée: ${providerAnswers.join(" | ")}`;
+        // Combine the answers (simulating a merge via LLM)
+        const combinedAnswer = `Combined answer: ${providerAnswers.join(" | ")}`;
         return {
             id: q.id,
             topic: q.topic,
@@ -301,15 +301,15 @@ app.post('/api/generateFAQ', (req, res) => {
             answer: combinedAnswer
         };
     });
-    finalFAQs = faqs; // stockage global
+    finalFAQs = faqs; // global storage
     res.json({ faqs });
 });
-// Endpoint pour exporter la FAQ en fichier JSONL
+// Endpoint to export the FAQ as a JSONL file
 app.get('/api/exportFAQ', (req, res) => {
     if (!finalFAQs || finalFAQs.length === 0) {
-        return res.status(400).json({ error: "Aucune FAQ générée à exporter." });
+        return res.status(400).json({ error: "No FAQ generated to export." });
     }
-    // Création du contenu JSONL
+    // Create the JSONL content
     const jsonlContent = finalFAQs.map(faq => {
         return JSON.stringify({
             prompt: faq.question,
@@ -320,13 +320,13 @@ app.get('/api/exportFAQ', (req, res) => {
     res.setHeader('Content-Type', 'text/plain');
     res.send(jsonlContent);
 });
-// Endpoint pour récupérer les providers disponibles
+// Endpoint to retrieve available providers
 app.get('/api/providers', (req, res) => {
     devLog('Fetching available providers');
     res.json({ providers });
 });
 
-// Endpoint pour générer des déclinaisons de mots-clés
+// Endpoint to generate keyword variations
 app.post('/api/generateTopicVariations', async (req, res) => {
     const { topic } = req.body;
 
@@ -408,41 +408,41 @@ Expected format: ["variation1", "variation2", "variation3"]`;
     }
 });
 
-// Endpoint pour générer des smart tags
+// Endpoint to generate smart tags
 app.post('/api/generateSmartTags', async (req, res) => {
     const { text, existingTags } = req.body;
 
     if (!text) {
-        return res.status(400).json({ error: "Veuillez fournir un texte à analyser." });
+        return res.status(400).json({ error: "Please provide text to analyze." });
     }
 
     try {
         if (!anthropic) {
-            return res.status(400).json({ error: "Service d'analyse non disponible." });
+            return res.status(400).json({ error: "Analysis service unavailable." });
         }
 
         const existingTagsPrompt = existingTags && existingTags.length > 0
-            ? `\nVoici les tags existants: ${JSON.stringify(existingTags)}
-Si tu vois des tags qui correspondent bien au texte, utilise-les. Sinon, tu peux en créer de nouveaux.`
+            ? `\nHere are the existing tags: ${JSON.stringify(existingTags)}
+If you see tags that match the text well, use them. Otherwise, you can create new ones.`
             : '';
 
-        const prompt = `Analyse ce texte et extrait-en 1 à 3 tags pertinents qui représentent les concepts clés.
-RÈGLES IMPORTANTES pour les tags:
-1. Toujours utiliser le singulier (exemple: "legume" et non "legumes")
-2. Pour les expressions de plusieurs mots, utiliser des underscores (exemple: "base_de_donnee")
-3. Pas d'espaces, pas d'accents, pas de caractères spéciaux
-4. Tout en minuscules
-5. Rester simple et générique
-6. Préférer les tags existants
+        const prompt = `Analyze this text and extract 1 to 3 relevant tags that represent the key concepts.
+IMPORTANT RULES for tags:
+1. Always use the singular form (example: "legume" not "legumes")
+2. For multi-word expressions, use underscores (example: "base_de_donnee")
+3. No spaces, no accents, no special characters
+4. All lowercase
+5. Keep it simple and generic
+6. Prefer existing tags
 
-Exemple 1: "astuces pour faire manger des légumes aux tout-petits" -> ["astuce", "legume", "enfant"]
-Exemple 2: "impact du régime kéto sur la santé mentale" -> ["alimentation", "keto", "sante_mentale"]
-Exemple 3: "les différents types de bases de données SQL" -> ["base_de_donnee", "sql"]
+Example 1: "tips for getting toddlers to eat vegetables" -> ["astuce", "legume", "enfant"]
+Example 2: "impact of the keto diet on mental health" -> ["alimentation", "keto", "sante_mentale"]
+Example 3: "the different types of SQL databases" -> ["base_de_donnee", "sql"]
 
-Texte à analyser: "${text}"${existingTagsPrompt}
+Text to analyze: "${text}"${existingTagsPrompt}
 
-IMPORTANT: Réponds UNIQUEMENT avec un tableau JSON contenant les tags, rien d'autre.
-Format attendu: ["tag1", "tag2", "tag3"]`;
+IMPORTANT: Reply ONLY with a JSON array containing the tags, nothing else.
+Expected format: ["tag1", "tag2", "tag3"]`;
 
         devLog('Generating smart tags for:', text);
         if (existingTags) {
@@ -472,7 +472,7 @@ Format attendu: ["tag1", "tag2", "tag3"]`;
         } catch (parseError) {
             devLog('Parse error:', parseError);
             devLog('Raw response:', message.content[0].text);
-            throw new Error('Format de réponse invalide');
+            throw new Error('Invalid response format');
         }
 
         devLog('Generated tags:', tags);
@@ -486,24 +486,24 @@ Format attendu: ["tag1", "tag2", "tag3"]`;
         });
 
         res.status(500).json({
-            error: "Une erreur est survenue lors de la génération des tags.",
+            error: "An error occurred while generating tags.",
             details: isDev ? error.message : undefined
         });
     }
 });
 
-// Ajouter après la configuration des middlewares
+// Add after middleware configuration
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
     next();
 });
 
-// Ajouter avant app.listen()
+// Add before app.listen()
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// Ajouter une route catch-all pour gérer les autres chemins
+// Add a catch-all route to handle other paths
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
